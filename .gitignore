@@ -6,6 +6,8 @@ node_modules/
 .env.*
 !.env.example
 env all.txt
+test env.txt
+test env.txt
 
 # Local runtime data: SQLite database, generated media, logs
 data/
