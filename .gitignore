@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local runtime data: SQLite database, generated media, logs
+data/
+
+# Logs and OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# Test / tooling output
+coverage/
+.nyc_output/
