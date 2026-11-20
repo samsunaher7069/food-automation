@@ -173,6 +173,9 @@
         renderAuth({ setupRequired: false });
       }
       const msg = (data && data.error) || (typeof data === 'string' && data.slice(0, 300)) || `Request failed (HTTP ${res.status})`;
+      // Surface API failures in the browser console (F12 → Console) as a
+      // built-in, per-device diagnostics log alongside the in-app Logs view.
+      console.error(`[Nourish API] ${method} ${path} → HTTP ${res.status}`, data);
       const err = new Error(msg);
       err.status = res.status;
       err.data = data;
