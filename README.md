@@ -166,19 +166,35 @@ This is a planning tool, not medical advice. Brand, preparation, and portion dif
 
 `render.yaml` defines:
 
-- `nourish-db` — PostgreSQL 17
 - `nourish-studio` — web service (`npm start`), health check at `/health`
 - `nourish-automation` — cron service, every 15 minutes, running `node server.js worker`
+
+The database is **Supabase Postgres (free plan)**. Create a project at
+[supabase.com](https://supabase.com), then copy the **Transaction pooler**
+connection string from **Project → Connect**:
+
+```
+postgresql://postgres.<project-ref>:<password>@aws-1-<region>.pooler.supabase.com:6543/postgres
+```
+
+Use the pooler (port `6543`) on Render: it works over IPv4 and handles many
+short-lived connections. The app accepts Supabase's TLS certificate
+automatically (`lib/db.js`) and stores everything in `postgres`.
 
 Deploy:
 
 1. Push the project to a Git repository.
 2. In Render: **New → Blueprint**, select the repository.
-3. Set `APP_URL` to the public web URL.
-4. Optionally set `ADMIN_USERNAME`/`ADMIN_PASSWORD`; otherwise use the first-run wizard.
-5. Add provider credentials either through the dashboard or as Render environment variables. If you set Gemini/Cloudinary env vars only on the web service, add the same values to the cron service too (or save them in the dashboard, where both services read them from the database).
-6. After the first deploy, open the app, complete setup, and connect the accounts.
-7. In **API Connections**, register the production OAuth redirect URIs in Google and Pinterest.
+3. Paste the Supabase connection string into `DATABASE_URL` (web and cron use the same value).
+4. Set `APP_URL` to the public web URL.
+5. Optionally set `ADMIN_USERNAME`/`ADMIN_PASSWORD`; otherwise use the first-run wizard.
+6. Add provider credentials either through the dashboard or as Render environment variables. If you set Gemini/Cloudinary env vars only on the web service, add the same values to the cron service too (or save them in the dashboard, where both services read them from the database).
+7. After the first deploy, open the app, complete setup, and connect the accounts.
+8. In **API Connections**, register the production OAuth redirect URIs in Google and Pinterest.
+
+`GET /health` reports `"driver":"pg"` when PostgreSQL is in use. If it says
+`"driver":"sqlite"`, `DATABASE_URL` is missing and data will be lost on the
+next deploy.
 
 ### Why a cron service
 
@@ -291,7 +307,7 @@ Image generation uses a headerless image request. The returned bytes are stored 
 - **Pinterest requires Cloudinary** (or another public image host). Local images alone cannot be pinned.
 - **Render's filesystem is ephemeral.** PostgreSQL is the durable store; Cloudinary is the durable image store. Local `data/media` survives only for the life of the instance.
 - **Free Render services sleep.** The cron worker is independent, but the dashboard may take a few seconds to wake.
-- **Free Render PostgreSQL expires after 30 days.** Upgrade the database plan for production.
+- **Supabase free projects pause after inactivity.** Open the Supabase dashboard and resume the project (or upgrade) if the app reports a database connection error.
 - **SQLite is a convenience fallback**, not a concurrent production database.
 
 ---

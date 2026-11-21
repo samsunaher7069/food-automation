@@ -1,15 +1,13 @@
 # ------------------------------------------------------------------
 # Nourish Studio — Render blueprint
 # Deploy: Dashboard → New → Blueprint → select this repository.
-# Render creates the Postgres database, the web service and the cron job.
+# Database: Supabase free Postgres (set DATABASE_URL when prompted).
+# Render creates the web service and the cron job.
+#
+# Supabase connection string: Dashboard → Project → Connect →
+# Transaction pooler (port 6543). Example:
+#   postgresql://postgres.<ref>:<password>@aws-1-<region>.pooler.supabase.com:6543/postgres
 # ------------------------------------------------------------------
-
-databases:
-  - name: nourish-db
-    databaseName: nourish
-    user: nourish
-    plan: free            # Render free Postgres expires after 30 days — upgrade for production.
-    postgresMajorVersion: "17"
 
 services:
   # ------------------------------------------------------------------
@@ -29,10 +27,9 @@ services:
         value: "24.11.0"
       - key: NODE_ENV
         value: production
+      # Supabase Postgres connection string (paste it in the Render dashboard).
       - key: DATABASE_URL
-        fromDatabase:
-          name: nourish-db
-          property: connectionString
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: CRON_SECRET
@@ -99,10 +96,12 @@ services:
         value: "24.11.0"
       - key: NODE_ENV
         value: production
+      # Must be the same database as the web service.
       - key: DATABASE_URL
-        fromDatabase:
-          name: nourish-db
-          property: connectionString
+        fromService:
+          type: web
+          name: nourish-studio
+          envVarKey: DATABASE_URL
       # Must match the web service so DB-encrypted API secrets can be decrypted.
       - key: SESSION_SECRET
         fromService:
