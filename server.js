@@ -1138,6 +1138,58 @@ app.delete('/api/connections/gemini', asyncHandler(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.put('/api/connections/cloudflare', asyncHandler(async (req, res) => {
+  const existing = (await db.getConnection('cloudflare')) || {};
+  const patch = { ...existing };
+  if (req.body.accountId !== undefined) patch.accountId = str(req.body.accountId, 100);
+  if (req.body.apiToken !== undefined) {
+    const token = str(req.body.apiToken, 300);
+    if (token && token.length < 20) throw new HttpError(400, 'That Cloudflare API token looks too short.');
+    patch.apiToken = token;
+  }
+  if (req.body.textModel !== undefined) patch.textModel = str(req.body.textModel, 160);
+  if (req.body.visionModel !== undefined) patch.visionModel = str(req.body.visionModel, 160);
+  if (req.body.imageModel !== undefined) patch.imageModel = str(req.body.imageModel, 160);
+  await db.setConnection('cloudflare', patch);
+  await db.logEvent({
+    level: 'info', service: 'cloudflare', operation: 'connection.save',
+    message: 'Cloudflare Workers AI settings saved.',
+  });
+  res.json({ ok: true, connections: await providers.connectionSummary() });
+}));
+
+app.post('/api/connections/cloudflare/test', asyncHandler(async (req, res) => {
+  const existing = (await db.getConnection('cloudflare')) || {};
+  const result = await ai.testCloudflare({
+    accountId: str(req.body.accountId, 100) || existing.accountId || process.env.CLOUDFLARE_ACCOUNT_ID,
+    apiToken: str(req.body.apiToken, 300) || existing.apiToken || process.env.CLOUDFLARE_API_TOKEN,
+    textModel: str(req.body.textModel, 160) || existing.textModel,
+    visionModel: str(req.body.visionModel, 160) || existing.visionModel,
+    imageModel: str(req.body.imageModel, 160) || existing.imageModel,
+  });
+  await db.setConnection('cloudflare', { ...existing, lastTest: result, verifiedAt: new Date().toISOString() });
+  await db.logEvent({
+    level: result.ok ? 'success' : 'warning', service: 'cloudflare', operation: 'connection.test',
+    status: result.ok ? 'success' : 'warning', message: result.message, durationMs: result.durationMs,
+  });
+  res.json(result);
+}));
+
+app.delete('/api/connections/cloudflare', asyncHandler(async (req, res) => {
+  await db.deleteConnection('cloudflare');
+  res.json({ ok: true });
+}));
+
+app.put('/api/connections/providers', asyncHandler(async (req, res) => {
+  const text = str(req.body.text, 20) || 'gemini';
+  const image = str(req.body.image, 20) || 'auto';
+  for (const value of [text, image]) {
+    if (!['auto', 'gemini', 'cloudflare'].includes(value)) throw new HttpError(400, 'Unknown AI provider.');
+  }
+  await db.saveSettings({ ai: { text, image } });
+  res.json({ ok: true, connections: await providers.connectionSummary() });
+}));
+
 app.put('/api/connections/cloudinary', asyncHandler(async (req, res) => {
   const existing = (await db.getConnection('cloudinary')) || {};
   const cloudName = req.body.cloudName !== undefined ? str(req.body.cloudName, 120) : existing.cloudName;

@@ -8,7 +8,7 @@ The dashboard is a premium dark single-page app with no build step. The backend 
 
 ## What is real
 
-- **Gemini** generates topics, the recipe JSON, SEO/Pinterest metadata, and the food photograph. Vision analysis checks the photo against the topic.
+- **Gemini** generates topics, the recipe JSON, SEO/Pinterest metadata, and the vision check. **Cloudflare Workers AI** creates the food photograph for free (Gemini image models remain selectable).
 - **Nutrition** is calculated deterministically on the server from ingredient quantities and a food-composition dataset. Images are never used to guess calories.
 - **Blogger** publishes through OAuth 2.0 and the official Blogger API v3, including Recipe JSON-LD.
 - **Pinterest** creates Pins through OAuth and the official Pinterest API v5, using the live Blogger URL as the destination.
@@ -24,7 +24,8 @@ When a provider is missing, over quota, or lacks permission, the UI reports the 
 
 - Node.js **24** (the project pins `24.11.0` on Render; newer local versions generally work)
 - PostgreSQL 15+ in production, or nothing for local SQLite
-- A Gemini API key with access to a text model and an image model
+- A Gemini API key with access to a text model (writing and vision)
+- Optional, for free photography: a Cloudflare Account ID and Workers AI token
 - Optional but required for full publishing:
   - Google OAuth client with **Blogger API v3** enabled
   - Pinterest app with boards/pins scopes
@@ -76,9 +77,13 @@ The test suite uses a temporary SQLite database and mocks Gemini, Cloudinary, Bl
 | `APP_URL` | Yes in production | Public base URL. Used for OAuth callbacks, canonical links, and absolute image URLs. |
 | `DATABASE_URL` | Production | PostgreSQL connection string. If omitted, SQLite is used. |
 | `CRON_SECRET` | Recommended | Shared secret for `POST /api/cron/run`. |
-| `GEMINI_API_KEY` | Yes | Google AI Studio key. Can also be saved in the UI. |
+| `GEMINI_API_KEY` | For writing | Google AI Studio key. Can also be saved in the UI. Gemini writes topics, recipes, nutrition mapping and SEO. |
 | `GEMINI_TEXT_MODEL` | No | Defaults to `gemini-3.8-flash`. |
 | `GEMINI_IMAGE_MODEL` | No | Defaults to `gemini-3.1-flash-image`. |
+| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | For free images | Workers AI credentials. Can also be saved in the UI. Token needs **Account → Workers AI → Read**. |
+| `CLOUDFLARE_IMAGE_MODEL` | No | Defaults to `@cf/black-forest-labs/flux-1-schnell`. |
+| `CLOUDFLARE_TEXT_MODEL` | No | Optional text fallback, default `@cf/meta/llama-3.3-70b-instruct-fp8-fast`. |
+| `CLOUDFLARE_VISION_MODEL` | No | Optional vision fallback, default `@cf/mistralai/mistral-small-3.1-24b-instruct`. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | For Blogger | Google OAuth web client. Can also be saved in the UI. |
 | `GOOGLE_REDIRECT_URI` | No | Defaults to `${APP_URL}/auth/google/callback`. |
 | `PINTEREST_CLIENT_ID` / `PINTEREST_CLIENT_SECRET` | For Pinterest | Pinterest app credentials. Can also be saved in the UI. |
@@ -92,7 +97,7 @@ The test suite uses a temporary SQLite database and mocks Gemini, Cloudinary, Bl
 | `MEDIA_DIR` | No | Local image directory, default `data/media`. |
 | `DB_PATH` | No | SQLite file path, default `data/app.db`. |
 
-Secrets entered in **API Connections** are stored encrypted in the database. Environment variables take precedence where both exist.
+Secrets entered in **API Connections** are stored encrypted in the database and take precedence. Environment variables are used when nothing is saved for that provider.
 
 ### Why the web and cron services must share `SESSION_SECRET`
 
@@ -196,6 +201,26 @@ Deploy:
 `"driver":"sqlite"`, `DATABASE_URL` is missing and data will be lost on the
 next deploy.
 
+### Free image generation (Cloudflare Workers AI)
+
+Gemini writes the content; Cloudflare Workers AI creates the food photograph.
+The free Workers plan includes **10,000 Neurons/day**, and
+`@cf/black-forest-labs/flux-1-schnell` costs roughly **57 Neurons per image**
+(about 170 images/day).
+
+1. Sign in at <https://dash.cloudflare.com> (free, no card).
+2. Copy the **Account ID** from **Workers & Pages** (right sidebar).
+3. **My Profile → API Tokens → Create Token**, permission
+   **Account → Workers AI → Read**. Copy the token once.
+4. Open **API Connections → Cloudflare Workers AI**, paste the Account ID and
+   token, keep the image model as `@cf/black-forest-labs/flux-1-schnell`, and
+   press **Test** then **Save**.
+
+The model returns a 1024×1024 JPEG. Cloudinary can serve a 2:3 Pinterest crop
+with an on-the-fly transformation (`c_fill,w_1000,h_1500`). **AI routing** lets
+you keep writing on Gemini while photographs use Cloudflare; `auto` falls back
+to the other provider when one is unavailable.
+
 ### Why a cron service
 
 Render web services can sleep on free plans and in-memory timers die with the process. The scheduler therefore lives in PostgreSQL:
@@ -294,7 +319,7 @@ All routes are JSON. Mutating routes require the `X-CSRF-Token` header returned 
 
 The primary call path is the current Interactions endpoint (`POST /v1beta/interactions`) with the documented API revision header, `input`, and `response_format`. If that endpoint is unavailable for a key, the client falls back to the classic `:generateContent` shape for text, vision, and image generation. Both model names are configurable, so a future model rename does not require a code change.
 
-Image generation uses a headerless image request. The returned bytes are stored locally, then uploaded to Cloudinary when configured. Text and recipe prompts request JSON; the client strips markdown fences and performs one repair attempt on malformed JSON.
+Image generation prefers Cloudflare Workers AI when configured (`POST /accounts/{id}/ai/run/@cf/black-forest-labs/flux-1-schnell`) and falls back to Gemini. The returned bytes are stored locally, then uploaded to Cloudinary when configured. Text and recipe prompts request JSON; the client strips markdown fences and performs one repair attempt on malformed JSON.
 
 ---
 

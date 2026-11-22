@@ -51,6 +51,13 @@ services:
         value: gemini-3.8-flash
       - key: GEMINI_IMAGE_MODEL
         value: gemini-3.1-flash-image
+      # Cloudflare Workers AI (free food photography; can also be saved in the dashboard).
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_IMAGE_MODEL
+        value: "@cf/black-forest-labs/flux-1-schnell"
       # Google / Blogger OAuth (can also be saved from the dashboard).
       - key: GOOGLE_CLIENT_ID
         sync: false
@@ -119,6 +126,12 @@ services:
         value: gemini-3.8-flash
       - key: GEMINI_IMAGE_MODEL
         value: gemini-3.1-flash-image
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_IMAGE_MODEL
+        value: "@cf/black-forest-labs/flux-1-schnell"
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

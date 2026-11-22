@@ -625,6 +625,7 @@ table.data .actions { display: flex; gap: 4px; justify-content: flex-end; }
 .conn-logo.pinterest { color: #ff9c9c; background: rgba(255, 100, 100, 0.08); border-color: rgba(255, 100, 100, 0.2); }
 .conn-logo.cloudinary { color: #9fc6ff; background: rgba(80, 150, 255, 0.08); border-color: rgba(80, 150, 255, 0.2); }
 .conn-logo.nutrition { color: #b9e6a4; background: rgba(150, 220, 120, 0.08); border-color: rgba(150, 220, 120, 0.2); }
+.conn-logo.cloudflare { color: #ffbf80; background: rgba(247, 130, 26, 0.1); border-color: rgba(247, 130, 26, 0.25); }
 .conn-head h3 { font-size: 13.5px; }
 .conn-head p { font-size: 11px; color: var(--dim); margin-top: 2px; }
 .conn-head .badge { margin-left: auto; }

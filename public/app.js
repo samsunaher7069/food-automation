@@ -527,6 +527,7 @@
     if (!el || !c) return;
     el.innerHTML = [
       `<span title="Gemini: ${c.gemini?.configured ? 'configured' : 'missing'}">${connectionDot(c.gemini?.configured)}</span>`,
+      `<span title="Cloudflare AI: ${c.cloudflare?.configured ? 'configured' : 'missing'}">${connectionDot(c.cloudflare?.configured)}</span>`,
       `<span title="Blogger: ${c.google?.connected ? 'connected' : c.google?.configured ? 'app configured, not connected' : 'missing'}">${connectionDot(c.google?.connected, c.google?.configured)}</span>`,
       `<span title="Pinterest: ${c.pinterest?.connected ? 'connected' : c.pinterest?.configured ? 'app configured, not connected' : 'missing'}">${connectionDot(c.pinterest?.connected, c.pinterest?.configured)}</span>`,
       `<span title="Cloudinary: ${c.cloudinary?.configured ? 'configured' : 'missing'}">${connectionDot(c.cloudinary?.configured)}</span>`,
@@ -661,7 +662,8 @@
     if (!state.settings) return;
     const c = state.connections || {};
     const blockers = [];
-    if (!c.gemini?.configured) blockers.push('Gemini API key is not configured.');
+    if (!c.ai?.textConfigured) blockers.push('No AI writing provider is configured.');
+    if (!c.ai?.imageConfigured) blockers.push('No image provider is configured.');
     if (!state.settings.automation?.autoBlogger && !state.settings.automation?.autoPinterest) blockers.push('Automation has no publishing destination enabled.');
     const confirmed = await confirmDialog({
       title: 'Generate and publish now?',
@@ -757,7 +759,7 @@
     const attention = (s.failed || 0) + (s.pendingErrors || 0);
     const setupDone = Boolean(settings.setup?.completed);
     const essential = [
-      { ok: c.gemini?.configured, label: 'Gemini API' },
+      { ok: c.ai?.configured, label: 'AI provider' },
       { ok: c.google?.connected, label: 'Blogger' },
       { ok: c.pinterest?.connected, label: 'Pinterest' },
       { ok: c.cloudinary?.configured, label: 'Cloudinary' },
@@ -820,7 +822,7 @@
             <div class="grow"><h3>Finish connecting your studio</h3><div class="sub">${missing.length} of 4 integrations still need attention.</div></div>
             <button class="btn sm" data-goto="connections">Open connections</button>
           </div>
-          ${checkItem(c.gemini?.configured, 'Gemini API key', c.gemini?.configured ? 'Configured and ready for text, vision and image models.' : 'Needed for topics, recipes, SEO and food photography.', 'connections', 'Add key')}
+          ${checkItem(c.ai?.configured, 'AI providers', c.ai?.configured ? `Writing: ${esc(c.ai?.textProvider || 'gemini')} · Photos: ${esc(c.ai?.imageProvider || 'auto')}` : 'Gemini writes recipes and SEO; Cloudflare generates the photographs.', 'connections', 'Configure')}
           ${checkItem(c.google?.connected, 'Blogger (Google OAuth)', c.google?.connected ? `Connected${c.google?.defaultBlogName ? ` · ${c.google.defaultBlogName}` : ''}` : 'Publish articles with the official Blogger API v3.', 'connections', 'Connect')}
           ${checkItem(c.pinterest?.connected, 'Pinterest (OAuth)', c.pinterest?.connected ? `Connected${c.pinterest?.username ? ` · @${c.pinterest.username}` : ''}` : 'Create Pins that link to your live Blogger article.', 'connections', 'Connect')}
           ${checkItem(c.cloudinary?.configured, 'Cloudinary', c.cloudinary?.configured ? 'Public image hosting is ready for Pinterest.' : 'Pinterest needs a public https image URL.', 'connections', 'Configure')}
@@ -866,6 +868,7 @@
               <div class="conn-strip">
                 ${[
                   ['Gemini', c.gemini?.configured, 'gemini'],
+                  ['Cloudflare AI', c.cloudflare?.configured, 'cloudflare'],
                   ['Blogger', c.google?.connected, c.google?.configured ? 'warn' : ''],
                   ['Pinterest', c.pinterest?.connected, c.pinterest?.configured ? 'warn' : ''],
                   ['Cloudinary', c.cloudinary?.configured, 'cloudinary'],
@@ -1196,7 +1199,7 @@
           // only enable if at least Gemini is configured, otherwise the welcome note explains it
           const conn = await api('/api/connections');
           state.connections = conn.connections;
-          if (state.connections?.gemini?.configured) {
+          if (state.connections?.ai?.configured) {
             const on = await api('/api/automation/toggle', { method: 'POST', body: { enabled: true } });
             state.settings.automation.enabled = on.enabled;
           } else {
@@ -1852,10 +1855,10 @@
   async function generateFull() {
     const form = studioForm();
     if (!form.topic) return toast('Enter a topic, or tap Suggest.', 'warn');
-    if (!state.connections?.gemini?.configured) {
+    if (!state.connections?.ai?.textConfigured) {
       const goConn = await confirmDialog({
-        title: 'Gemini is not configured',
-        message: 'The studio needs a Gemini API key before it can generate content. Open API Connections now?',
+        title: 'No AI writer configured',
+        message: 'The studio needs Gemini (or Cloudflare as a fallback) before it can write recipes and articles. Open API Connections now?',
         confirmLabel: 'Open connections',
       });
       if (goConn) go('connections');
@@ -1891,8 +1894,8 @@
   async function generateImageOnly() {
     const form = studioForm();
     if (!form.topic) return toast('Enter a topic first.', 'warn');
-    if (!state.connections?.gemini?.configured) return toast('Configure Gemini first.', 'warn');
-    const done = busy('Creating the food photograph…', 'Gemini image model');
+    if (!state.connections?.ai?.imageConfigured) return toast('Configure an image provider first (Cloudflare or Gemini).', 'warn');
+    const done = busy('Creating the food photograph…', 'Cloudflare Workers AI');
     try {
       const res = state.studio?.post?.id
         ? await api(`/api/posts/${state.studio.post.id}/generate-image`, { method: 'POST', body: { prompt: form.imagePrompt || undefined, imageStyle: form.imageStyle } })
@@ -2020,7 +2023,8 @@
     if (!post) { el.innerHTML = `<p class="hint">Generate or save a draft to enable publishing.</p>`; return; }
     const c = state.connections || {};
     const notes = [];
-    if (!c.gemini?.configured) notes.push(['warn', 'Gemini is not configured — generation will fail until you add a key.']);
+    if (!c.ai?.textConfigured) notes.push(['warn', 'No AI writing provider is configured — add Gemini or Cloudflare in API Connections.']);
+    if (!c.ai?.imageConfigured) notes.push(['warn', 'No image provider is configured — photographs cannot be generated.']);
     if (!state.settings?.blogger?.defaultBlogId) notes.push(['warn', 'No Blogger blog selected — choose one in API Connections before publishing.']);
     if (!c.cloudinary?.configured) notes.push(['warn', 'Cloudinary is not configured — Pinterest needs a public https image URL.']);
     if (post.imageLocalUrl && !post.isPublicImage) notes.push(['info', 'Image is stored locally. Cloudinary is required to make it public.']);
@@ -2745,6 +2749,8 @@
     const g = c.google || {};
     const pi = c.pinterest || {};
     const gem = c.gemini || {};
+    const cf = c.cloudflare || {};
+    const ai = c.ai || {};
     const cloud = c.cloudinary || {};
     const nut = c.nutrition || {};
 
@@ -2775,6 +2781,38 @@
             <button class="btn sm" data-c="gemTest">${icon('zap')} Test</button>
             <button class="btn sm primary" data-c="gemSave">${icon('check')} Save</button>
             ${gem.configured ? `<button class="btn sm danger" data-c="gemRemove" title="Remove saved key">${icon('trash')}</button>` : ''}
+          </div>
+        </section>
+
+        <section class="card conn-card">
+          <div class="conn-head">
+            <div class="conn-logo cloudflare">${icon('image')}</div>
+            <div class="grow"><h3>Cloudflare Workers AI</h3><p>Free food photography · ${esc(cf.imageModel || 'flux-1-schnell')}</p></div>
+            <span class="badge ${cf.configured ? 'b-green' : 'b-amber'}">${cf.configured ? 'Connected' : 'Optional'}</span>
+          </div>
+          <div class="conn-body">
+            <div class="field"><label>Account ID</label>
+              <input type="text" id="cfAccount" autocomplete="off" spellcheck="false" value="${attr(cf.accountId || '')}" placeholder="Hex Account ID from the Cloudflare dashboard" /></div>
+            <div class="field"><label>API token</label>
+              <input type="password" id="cfToken" autocomplete="off" spellcheck="false" placeholder="${cf.configured ? '•••••••• (saved)' : 'cfut_…'}" />
+              <span class="hint">${cf.configured ? 'Leave blank to keep the saved token.' : 'Create a token with Account → Workers AI → Read.'}</span></div>
+            <div class="field"><label>Image model</label>
+              <input type="text" id="cfImage" value="${attr(cf.imageModel || '@cf/black-forest-labs/flux-1-schnell')}" /></div>
+            <details>
+              <summary class="small muted" style="cursor:pointer">Advanced: optional text/vision models</summary>
+              <div class="grid cols-2 mt-2">
+                <div class="field"><label>Text model</label><input type="text" id="cfText" value="${attr(cf.textModel || '@cf/meta/llama-3.3-70b-instruct-fp8-fast')}" /></div>
+                <div class="field"><label>Vision model</label><input type="text" id="cfVision" value="${attr(cf.visionModel || '@cf/mistralai/mistral-small-3.1-24b-instruct')}" /></div>
+              </div>
+              <p class="hint">Only used if you switch writing to Cloudflare below. Gemini handles writing by default.</p>
+            </details>
+            <div class="hint mt-2">Free plan: 10,000 Neurons/day. flux-1-schnell uses ≈57 per image (about 170/day). Output is 1024×1024; Cloudinary can serve a 2:3 crop for Pinterest.</div>
+            ${cf.lastTest ? `<div class="hint">Last test ${esc(relTime(cf.verifiedAt || cf.lastTest.at))}: ${cf.lastTest.ok ? 'passed' : 'failed'}${cf.lastTest.message ? ` · ${esc(cf.lastTest.message)}` : ''}</div>` : ''}
+          </div>
+          <div class="conn-foot">
+            <button class="btn sm" data-c="cfTest">${icon('zap')} Test</button>
+            <button class="btn sm primary" data-c="cfSave">${icon('check')} Save</button>
+            ${cf.configured ? `<button class="btn sm danger" data-c="cfRemove" title="Remove saved credentials">${icon('trash')}</button>` : ''}
           </div>
         </section>
 
@@ -2880,6 +2918,36 @@
       </section>
 
       <section class="card mt-3">
+        <div class="conn-head">
+          <div class="conn-logo gemini">${icon('sparkles')}</div>
+          <div class="grow"><h3>AI routing</h3><p>Choose which provider writes content and which creates the photographs.</p></div>
+          <span class="badge b-gray no-dot">${esc(ai.textProvider || 'gemini')} / ${esc(ai.imageProvider || 'auto')}</span>
+        </div>
+        <div class="conn-body">
+          <div class="form-grid">
+            <div class="field"><label>Writing, recipes and SEO</label>
+              <select id="aiText">
+                <option value="gemini" ${ai.textProvider === 'gemini' ? 'selected' : ''}>Gemini only (recommended)</option>
+                <option value="auto" ${ai.textProvider === 'auto' ? 'selected' : ''}>Auto — Gemini first, then Cloudflare</option>
+                <option value="cloudflare" ${ai.textProvider === 'cloudflare' ? 'selected' : ''}>Cloudflare only</option>
+              </select>
+            </div>
+            <div class="field"><label>Food photographs</label>
+              <select id="aiImage">
+                <option value="auto" ${ai.imageProvider === 'auto' ? 'selected' : ''}>Auto — Cloudflare first, then Gemini (recommended)</option>
+                <option value="cloudflare" ${ai.imageProvider === 'cloudflare' ? 'selected' : ''}>Cloudflare only</option>
+                <option value="gemini" ${ai.imageProvider === 'gemini' ? 'selected' : ''}>Gemini only</option>
+              </select>
+            </div>
+          </div>
+          <div class="banner info mt-2">${icon('info')}<span>Gemini is used for topics, recipes, nutrition mapping, SEO and vision. Cloudflare Workers AI generates the food photo for free; “Auto” falls back to the other provider if one is unavailable.</span></div>
+        </div>
+        <div class="conn-foot">
+          <button class="btn sm primary" data-c="aiSave">${icon('check')} Save routing</button>
+        </div>
+      </section>
+
+      <section class="card mt-3">
         <div class="card-head"><div class="grow"><h3>Server configuration</h3><div class="sub">Values read from environment variables — never editable secrets</div></div></div>
         <div class="card-body">
           <div class="form-grid">
@@ -2926,6 +2994,62 @@
       if (!await confirmDialog({ title: 'Remove Gemini key?', message: 'The saved key is deleted from the database. Content generation will stop until a new key is added.', confirmLabel: 'Remove key', danger: true })) return;
       try { await api('/api/connections/gemini', { method: 'DELETE' }); toast('Key removed.', 'success'); await refreshCore(); rerenderConnections(root); }
       catch (err) { toast(err.message, 'error'); }
+    });
+
+    const cfFields = () => ({
+      accountId: ($('#cfAccountId')?.value || '').trim(),
+      apiToken: ($('#cfApiToken')?.value || '').trim(),
+      imageModel: ($('#cfImage')?.value || '').trim(),
+      textModel: ($('#cfText')?.value || '').trim(),
+      visionModel: ($('#cfVision')?.value || '').trim(),
+    });
+
+    on('cfSave', async () => {
+      try {
+        const f = cfFields();
+        const body = {
+          accountId: f.accountId, imageModel: f.imageModel,
+          textModel: f.textModel, visionModel: f.visionModel,
+        };
+        if (f.apiToken) body.apiToken = f.apiToken;
+        await api('/api/connections/cloudflare', { method: 'PUT', body });
+        toast('Cloudflare settings saved.', 'success');
+        await refreshCore();
+        rerenderConnections(root);
+      } catch (err) { toast(err.message, 'error'); }
+    });
+    on('cfTest', async () => {
+      const btn = root.querySelector('[data-c="cfTest"]');
+      btn.disabled = true;
+      try {
+        const f = cfFields();
+        const body = {
+          accountId: f.accountId, imageModel: f.imageModel,
+          textModel: f.textModel, visionModel: f.visionModel,
+        };
+        if (f.apiToken) body.apiToken = f.apiToken;
+        await api('/api/connections/cloudflare', { method: 'PUT', body });
+        const res = await api('/api/connections/cloudflare/test', { method: 'POST', body: {} });
+        toast(res.message, res.ok ? 'success' : 'error', 9000);
+        await refreshCore();
+        rerenderConnections(root);
+      } catch (err) { toast(err.message, 'error', 9000); btn.disabled = false; }
+    });
+    on('cfRemove', async () => {
+      if (!await confirmDialog({ title: 'Remove Cloudflare credentials?', message: 'The saved Account ID and token are deleted. Image generation falls back to Gemini or stops.', confirmLabel: 'Remove', danger: true })) return;
+      try { await api('/api/connections/cloudflare', { method: 'DELETE' }); toast('Cloudflare removed.', 'success'); await refreshCore(); rerenderConnections(root); }
+      catch (err) { toast(err.message, 'error'); }
+    });
+    on('aiSave', async () => {
+      try {
+        await api('/api/connections/providers', {
+          method: 'PUT',
+          body: { text: $('#aiText')?.value || 'gemini', image: $('#aiImage')?.value || 'auto' },
+        });
+        toast('AI routing saved.', 'success');
+        await refreshCore();
+        rerenderConnections(root);
+      } catch (err) { toast(err.message, 'error'); }
     });
 
     on('cloudSave', async () => {
@@ -3477,6 +3601,7 @@
               <div class="row"><span>Public URL</span><strong>${esc(state.envHints?.APP_URL || location.origin)}</strong></div>
               <div class="row"><span>Cron secret</span><strong>${state.envHints?.hasCronSecret ? 'Configured' : 'Not set'}</strong></div>
               <div class="row"><span>Gemini</span><strong>${state.connections?.gemini?.configured ? 'Configured' : 'Missing'}</strong></div>
+              <div class="row"><span>Cloudflare AI</span><strong>${state.connections?.cloudflare?.configured ? 'Configured' : 'Missing'}</strong></div>
             </div>
             <hr class="divider" />
             <div class="row">
