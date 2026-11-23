@@ -1756,7 +1756,7 @@
               <div class="image-stage" id="studioImageStage">
                 ${post && imgFor(post)
                   ? `<img src="${attr(imgFor(post))}" alt="${attr(post.imageAlt || post.title || post.topic)}" />`
-                  : `<div class="image-placeholder">${icon('image')}<p>Your food photograph will appear here at 2:3.</p></div>`}
+                  : `<div class="image-placeholder">${icon('image')}<p>Your food photograph will appear here at 9:16.</p></div>`}
                 <div class="image-overlay">
                   <button class="btn sm" id="stUpload">${icon('upload')} Upload</button>
                   <button class="btn sm ghost" id="stRegenImage" ${post ? '' : 'disabled'}>${icon('wand')} ${post && imgFor(post) ? 'Regenerate' : 'Generate'}</button>
@@ -1963,7 +1963,7 @@
     const post = state.studio?.post;
     const stage = post?.stageStatus || {};
     const defs = [
-      { key: 'image', label: 'Food photograph', hint: 'Gemini image model · 2:3', endpoint: 'generate-image', rerun: 'regenerate-image' },
+      { key: 'image', label: 'Food photograph', hint: 'Gemini image model · 9:16', endpoint: 'generate-image', rerun: 'regenerate-image' },
       { key: 'image_analysis', label: 'Vision check', hint: 'Verifies the photo matches the topic', endpoint: 'analyze-image' },
       { key: 'recipe', label: 'Recipe', hint: 'Ingredients, steps, tips, FAQ', endpoint: 'generate-recipe' },
       { key: 'nutrition', label: 'Nutrition', hint: 'Calculated from quantities', endpoint: 'generate-nutrition' },
@@ -2806,7 +2806,7 @@
               </div>
               <p class="hint">Only used if you switch writing to Cloudflare below. Gemini handles writing by default.</p>
             </details>
-            <div class="hint mt-2">Free plan: 10,000 Neurons/day. flux-1-schnell uses ≈57 per image (about 170/day). Output is 1024×1024; Cloudinary can serve a 2:3 crop for Pinterest.</div>
+            <div class="hint mt-2">Free plan: 10,000 Neurons/day. flux-1-schnell uses ≈57 per image (about 170/day). Output is 1024×1024; Cloudinary can serve a 9:16 crop for Pinterest.</div>
             ${cf.lastTest ? `<div class="hint">Last test ${esc(relTime(cf.verifiedAt || cf.lastTest.at))}: ${cf.lastTest.ok ? 'passed' : 'failed'}${cf.lastTest.message ? ` · ${esc(cf.lastTest.message)}` : ''}</div>` : ''}
           </div>
           <div class="conn-foot">
@@ -3258,7 +3258,7 @@
             <div class="stack" style="gap:8px">
               ${[
                 ['autoTopic', 'Generate a fresh topic', 'Uses the topic prompt and avoids recent duplicates.'],
-                ['autoImage', 'Generate the food photograph', 'Gemini image model · 2:3 vertical.'],
+                ['autoImage', 'Generate the food photograph', 'Gemini image model · 9:16 vertical.'],
                 ['autoContent', 'Write recipe, nutrition, SEO and article', 'The full content pipeline.'],
                 ['autoBlogger', 'Publish to Blogger', 'Creates a live article with recipe schema.'],
                 ['autoPinterest', 'Create the Pinterest Pin', 'Only after a valid Blogger URL exists.'],
